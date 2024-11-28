@@ -1,0 +1,97 @@
+```{r}
+# Load necessary libraries
+library(dplyr)
+
+data <- read.csv(file.choose())
+```
+
+```{r}
+
+# ---------------------------------
+# Step 1: Handle Missing Values
+# ---------------------------------
+
+# 1. Identify numerical and categorical columns
+num_cols <- sapply(data, is.numeric) # Logical vector for numeric columns
+cat_cols <- sapply(data, is.character) # Logical vector for categorical columns
+
+# 2. Handle missing values in numerical columns
+# Replace NA in numerical columns with the median of each column
+data[num_cols] <- lapply(data[num_cols], function(x) ifelse(is.na(x), median(x, na.rm = TRUE), x))
+
+# 3. Handle missing values in categorical columns
+# Replace NA in categorical columns with "None"
+data[cat_cols] <- lapply(data[cat_cols], function(x) ifelse(is.na(x), "None", x))
+
+# ---------------------------------
+# Step 2: Verify Data Cleaning
+# ---------------------------------
+
+# Check for any remaining missing values
+missing_values <- sum(is.na(data))
+if (missing_values == 0) {
+  print("All missing values have been handled successfully!")
+} else {
+  print(paste("Remaining missing values:", missing_values))
+}
+
+```
+
+```{r}
+# Filter data for the three neighborhoods
+filtered_data <- data %>%
+  filter(Neighborhood %in% c("NAmes", "Edwards", "BrkSide"))
+
+```
+
+```{r}
+filtered_data
+```
+
+
+
+```{r}
+# Create transformed variables
+filtered_data <- filtered_data %>%
+  mutate(GrLivArea_100 = GrLivArea / 100, Neighborhood = factor(Neighborhood))
+
+```
+
+```{r}
+# Fit the model
+model <- lm(SalePrice ~ GrLivArea_100 * Neighborhood, data = filtered_data)
+
+# Summarize the model
+summary(model)
+
+```
+
+```{r}
+# Plot residual diagnostics
+par(mfrow = c(2, 2))
+plot(model)
+
+```
+```{r}
+# Confidence intervals
+conf_intervals <- confint(model)
+conf_intervals
+
+```
+```{r}
+# Generate predictions with confidence intervals
+library(ggplot2)
+
+# Predicted SalePrice vs. GrLivArea_100 by Neighborhood
+ggplot(filtered_data, aes(x = GrLivArea_100, y = SalePrice, color = Neighborhood)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE, aes(fill = Neighborhood), alpha = 0.3) +
+  labs(
+    title = "Relationship Between Sale Price and Living Area by Neighborhood",
+    x = "Living Area (100 sq. ft. increments)",
+    y = "Sale Price (USD)"
+  )
+
+```
+
+
