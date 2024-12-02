@@ -1,0 +1,183 @@
+```{r}
+# Load necessary libraries
+library(dplyr)
+
+data <- read.csv(file.choose())
+```
+
+```{r}
+
+# ---------------------------------
+# Step 1: Handle Missing Values
+# ---------------------------------
+
+# 1. Identify numerical and categorical columns
+num_cols <- sapply(data, is.numeric) # Logical vector for numeric columns
+cat_cols <- sapply(data, is.character) # Logical vector for categorical columns
+
+# 2. Handle missing values in numerical columns
+# Replace NA in numerical columns with the median of each column
+data[num_cols] <- lapply(data[num_cols], function(x) ifelse(is.na(x), median(x, na.rm = TRUE), x))
+
+# 3. Handle missing values in categorical columns
+# Replace NA in categorical columns with "None"
+data[cat_cols] <- lapply(data[cat_cols], function(x) ifelse(is.na(x), "None", x))
+
+# ---------------------------------
+# Step 2: Verify Data Cleaning
+# ---------------------------------
+
+# Check for any remaining missing values
+missing_values <- sum(is.na(data))
+if (missing_values == 0) {
+  print("All missing values have been handled successfully!")
+} else {
+  print(paste("Remaining missing values:", missing_values))
+}
+```
+```{r}
+model1 <- lm(SalePrice ~ GrLivArea, data = data)
+```
+
+```{r}
+model2 <- lm(SalePrice ~ GrLivArea + FullBath, data = data)
+```
+
+```{r}
+model3 <- lm(SalePrice ~ GrLivArea + I(GrLivArea^2) + X1stFlrSF + I(X1stFlrSF^2) + X2ndFlrSF + I(X2ndFlrSF^2) + LotArea + I(LotArea^2) + BsmtFinSF1 + I(BsmtFinSF1^2) + OverallQual + YearBuilt + GarageArea + GarageYrBlt + I(GarageYrBlt^2) + GarageCars, data = data)
+```
+
+```{r}
+summary(model1)$adj.r.squared
+summary(model2)$adj.r.squared
+summary(model3)$adj.r.squared
+
+```
+
+```{r}
+# Function to calculate PRESS
+press <- function(model) {
+  sum(residuals(model)^2)
+}
+
+press_model1 <- press(model1)
+press_model2 <- press(model2)
+press_model3 <- press(model3)
+
+```
+
+```{r}
+print(press_model1)
+print(press_model2)
+print(press_model3)
+```
+
+```{r}
+test_data = read.csv(file.choose())
+```
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+
+
+# Check for missing values
+missing_summary <- colSums(is.na(test_data))
+print("Summary of Missing Values Before Fixing:")
+print(missing_summary)
+
+# Handle missing values
+# 1. Replace missing numerical values with the median
+num_cols <- sapply(test_data, is.numeric)
+test_data[num_cols] <- lapply(test_data[num_cols], function(x) {
+  ifelse(is.na(x), median(x, na.rm = TRUE), x)
+})
+
+# 2. Replace missing categorical values with "None"
+cat_cols <- sapply(test_data, is.character)
+test_data[cat_cols] <- lapply(test_data[cat_cols], function(x) {
+  ifelse(is.na(x), "None", x)
+})
+
+# Verify no missing values remain
+missing_summary_after <- colSums(is.na(test_data))
+print("Summary of Missing Values After Fixing:")
+print(missing_summary_after)
+
+```
+
+
+```{r}
+# Predict and calculate RMSE for each model
+predictions1 <- predict(model1, newdata = test_data)
+predictions2 <- predict(model2, newdata = test_data)
+predictions3 <- predict(model3, newdata = test_data)
+
+kaggle_score1 <- sqrt(mean((test_data$SalePrice - predictions1)^2))
+kaggle_score2 <- sqrt(mean((test_data$SalePrice - predictions2)^2))
+kaggle_score3 <- sqrt(mean((test_data$SalePrice - predictions3)^2))
+
+```
+
+```{r}
+# Generate predictions for the models
+predictions1 <- predict(model1, newdata = test_data)
+predictions2 <- predict(model2, newdata = test_data)
+predictions3 <- predict(model3, newdata = test_data)
+
+# Apply the logic to ensure SalePrice is never less than 10,000
+# Model 1
+adjusted_predictions1 <- ifelse(predictions1 > 0, predictions1, 10000)
+
+# Model 2
+adjusted_predictions2 <- ifelse(predictions2 > 0, predictions2, 10000)
+
+# Model 3
+adjusted_predictions3 <- ifelse(predictions3 > 0, predictions3, 10000)
+```
+
+
+```{r}
+```
+
+
+```{r}
+
+# Load necessary library
+library(ggplot2)
+
+# Filter numerical variables (excluding SalePrice)
+numerical_cols <- sapply(data, is.numeric) # Identify numeric columns
+numerical_data <- data[, numerical_cols]
+numerical_data <- numerical_data[, colnames(numerical_data) != "SalePrice"] # Exclude SalePrice
+
+# Create and display scatterplots for each numerical variable vs SalePrice
+for (col in colnames(numerical_data)) {
+  p <- ggplot(data, aes_string(x = col, y = "SalePrice")) +
+    geom_point(alpha = 0.5) +
+    labs(title = paste("SalePrice vs", col), x = col, y = "SalePrice") +
+    theme_minimal()
+  
+  # Explicitly print the plot within the loop
+  print(p)
+}
+```
+
+```{r}
+# For Model 3: Adjust predictions and handle NA values
+adjusted_predictions3 <- ifelse(is.na(predictions3) | predictions3 <= 0, 10000, predictions3)
+results3 <- data.frame(
+  Id = test_data$Id,
+  SalePrice = adjusted_predictions3
+)
+```
+
+
+```{r}
+results3
+```
+
+```{r}
+write.csv(results3, "results.csv", row.names = FALSE)
+```
+
