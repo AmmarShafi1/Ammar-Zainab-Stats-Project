@@ -1,0 +1,85 @@
+```{r}
+library(shiny)
+library(ggplot2)
+```
+
+
+```{r}
+# Load the dataset
+data <- read.csv("merged_num_house_id.csv")
+```
+
+
+
+```{r}
+# UI
+ui <- fluidPage(
+  titlePanel("Home Price Analysis"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      selectInput(
+        "neighborhood",
+        "Select Neighborhood:",
+        choices = c("All", "NAmes", "Edwards", "BrkSide"),
+        selected = "All"
+      ),
+      selectInput(
+        "variable",
+        "Select Variable to Plot:",
+        choices = c(
+          "LotArea", "OverallQual", "OverallCond", "YearBuilt", 
+          "YearRemodAdd", "MasVnrArea", "BsmtFinSF1", "TotalBsmtSF", 
+          "GrLivArea", "BedroomAbvGr", "KitchenAbvGr", "TotRmsAbvGrd", 
+          "GarageCars", "WoodDeckSF"
+        ),
+        selected = "GrLivArea"
+      ),
+      checkboxInput(
+        "trendline",
+        "Add Trend Line",
+        value = FALSE
+      )
+    ),
+    mainPanel(
+      plotOutput("scatterPlot")
+    )
+  )
+)
+
+# Server
+server <- function(input, output) {
+  output$scatterPlot <- renderPlot({
+    # Filter data based on selected neighborhood
+    if (input$neighborhood == "All") {
+      filtered_data <- subset(data, Neighborhood %in% c("NAmes", "Edwards", "BrkSide"))
+    } else {
+      filtered_data <- subset(data, Neighborhood == input$neighborhood)
+    }
+    
+    # Create scatter plot
+    p <- ggplot(filtered_data, aes_string(x = input$variable, y = "SalePrice", color = "Neighborhood")) +
+      geom_point() +
+      labs(
+        title = ifelse(input$neighborhood == "All", 
+                       "Home Price vs. Selected Variable (All Neighborhoods)", 
+                       paste("Home Price vs.", input$variable, "in", input$neighborhood)),
+        x = input$variable,
+        y = "Sale Price"
+      ) +
+      theme_minimal()
+    
+    # Add trend line if toggle is selected
+    if (input$trendline) {
+      p <- p + geom_smooth(method = "lm", se = FALSE, aes(group = Neighborhood))
+    }
+    
+    p
+  })
+}
+
+# Run the application
+shinyApp(ui = ui, server = server)
+
+```
+
