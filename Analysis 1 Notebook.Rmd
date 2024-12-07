@@ -1,7 +1,12 @@
 ```{r}
 # Load necessary libraries
 library(dplyr)
+library(ggplot2)
+library(scales)
+```
 
+
+```{r}
 data <- read.csv(file.choose())
 ```
 
@@ -38,17 +43,21 @@ if (missing_values == 0) {
 ```
 
 ```{r}
+# ---------------------------------
+# Step 3: Filter Data
+# ---------------------------------
 # Filter data for the three neighborhoods
 filtered_data <- data %>%
   filter(Neighborhood %in% c("NAmes", "Edwards", "BrkSide"))
 
 ```
-
 ```{r}
-filtered_data
+# Count how many times each neighborhood appears
+neighborhood_counts <- table(filtered_data$Neighborhood)
+
+# Display the counts
+print(neighborhood_counts)
 ```
-
-
 
 ```{r}
 # Create transformed variables
@@ -56,41 +65,140 @@ filtered_data <- filtered_data %>%
   mutate(GrLivArea_100 = GrLivArea / 100, Neighborhood = factor(Neighborhood))
 
 ```
+```{r}
+write.csv(filtered_data, "analysis_1.csv", row.names = FALSE)
+```
+
 
 ```{r}
-# Fit the model
-model <- lm(SalePrice ~ GrLivArea_100 * Neighborhood, data = filtered_data)
+# Create the scatterplot
+ggplot(data = filtered_data, aes(x = GrLivArea_100, y = SalePrice)) +
+  geom_point() +
+  labs(
+    title = "Scatterplot of Above ground living area (100 sqft) vs Sale  Price (USD)",
+    x = "Living Area (100 sqft)",
+    y = "Sale Price (USD)"
+  ) +
+  scale_y_continuous(labels = comma) +
+  theme_minimal()
+```
+```{r}
+# ---------------------------------
+# Step 4.1: Check for Potential Outliers
+# ---------------------------------
 
-# Summarize the model
-summary(model)
+model_initial <- lm(SalePrice ~ GrLivArea_100, data = filtered_data)
+# Plot residual diagnostics
+par(mfrow = c(2, 2))
+plot(model_initial)
+```
+
+```{r}
+# ---------------------------------
+# Step 4.2: Clean Up Outliers
+# ---------------------------------
+
+# Fit the initial model (with outliers included)
+model_initial <- lm(SalePrice ~ GrLivArea_100, data = filtered_data)
+
+# Check Cook's Distance to identify outliers
+cook_plot <- cooks.distance(model_initial)
+outliers <- which(cook_plot > 4 / length(cook_plot)) # Common threshold for outliers
+```
+
+```{r}
+# Create a data frame for Cook's Distance plot
+outliers_data <- filtered_data[outliers, ]
+
+# Plot the data with outliers highlighted
+ggplot(filtered_data, aes(x = GrLivArea_100, y = SalePrice)) +
+  geom_point(color = "blue") +  # Plot all points in blue
+  geom_point(data = outliers_data, aes(x = GrLivArea_100, y = SalePrice), color = "red") +  # Highlight outliers in red
+  labs(title = "Outliers Identified by Cook's Distance",
+       x = "Living Area (100 sqft)",
+       y = "Sale Price (USD)") +
+  scale_y_continuous(labels = comma) +
+  theme_minimal()
+```
+
+```{r}
+# Remove outliers from the data
+filtered_data_no_outliers <- filtered_data[-outliers, ]
+
+# Fit the model again (without outliers)
+model_no_outliers <- lm(SalePrice ~ GrLivArea_100, data = filtered_data_no_outliers)
+
+# Compare model performance
+
+# Initial model summary
+# summary(model_initial)
+
+# New model summary
+# summary(model_no_outliers)
+
+# Compare R-squared values
+cat("Initial R-squared: ", summary(model_initial)$r.squared, "\n")
+cat("New R-squared (without outliers): ", summary(model_no_outliers)$r.squared, "\n")
+
+# Compare AIC values (lower AIC is better)
+cat("Initial AIC: ", AIC(model_initial), "\n")
+cat("New AIC (without outliers): ", AIC(model_no_outliers), "\n")
+
+# Compare RMSE (Root Mean Squared Error)
+rmse_initial <- sqrt(mean(residuals(model_initial)^2))
+rmse_no_outliers <- sqrt(mean(residuals(model_no_outliers)^2))
+
+cat("Initial RMSE: ", rmse_initial, "\n")
+cat("New RMSE (without outliers): ", rmse_no_outliers, "\n")
+```
+
+
+```{r}
+# ---------------------------------
+# Step 5: Summarize New Model
+# ---------------------------------
+summary(model_no_outliers)
 
 ```
 
 ```{r}
 # Plot residual diagnostics
 par(mfrow = c(2, 2))
-plot(model)
+plot(model_no_outliers)
 
 ```
 ```{r}
 # Confidence intervals
-conf_intervals <- confint(model)
+conf_intervals <- confint(model_no_outliers)
 conf_intervals
 
 ```
+
+```{r}
+# ---------------------------------
+# Step 6: Build & Analyze model 
+# ---------------------------------
+
+# Fit a linear model including the neighborhood as a categorical variable
+model_with_neighborhood <- lm(SalePrice ~ GrLivArea_100 + Neighborhood, data = filtered_data_no_outliers)
+
+# Get the model summary
+summary(model_with_neighborhood)
+```
+
 ```{r}
 # Generate predictions with confidence intervals
 library(ggplot2)
 
 # Predicted SalePrice vs. GrLivArea_100 by Neighborhood
-ggplot(filtered_data, aes(x = GrLivArea_100, y = SalePrice, color = Neighborhood)) +
+ggplot(filtered_data_no_outliers, aes(x = GrLivArea_100, y = SalePrice, color = Neighborhood)) +
   geom_point() +
-  geom_smooth(method = "lm", se = TRUE, aes(fill = Neighborhood), alpha = 0.3) +
   labs(
     title = "Relationship Between Sale Price and Living Area by Neighborhood",
     x = "Living Area (100 sq. ft. increments)",
     y = "Sale Price (USD)"
-  )
+  )+
+  scale_y_continuous(labels = comma)
 
 ```
 
