@@ -1,8 +1,12 @@
 ```{r}
 # Load necessary libraries
 library(dplyr)
+library(caret)
+```
 
-data <- read.csv(file.choose())
+
+```{r}
+data <- read.csv("train.csv")
 ```
 
 ```{r}
@@ -83,6 +87,46 @@ if (missing_values == 0) {
 }
 ```
 ```{r}
+# Fit the initial model (with outliers included)
+model_initial <- lm(SalePrice ~ GrLivArea, data = data)
+
+# Check Cook's Distance to identify outliers
+cook_plot <- cooks.distance(model_initial)
+outliers <- which(cook_plot > 5 / length(cook_plot)) # Common threshold for outliers
+# Remove outliers from the data
+data <- data[-outliers, ]
+
+```
+
+```{r}
+# List of categories to loop through
+categories <- c("LotArea", "OverallQual", "OverallCond", "YearBuilt", "YearRemodAdd", 
+                "MasVnrArea", "BsmtFinSF1", "TotalBsmtSF", "GrLivArea", "BedroomAbvGr", 
+                "KitchenAbvGr", "TotRmsAbvGrd", "GarageCars", "WoodDeckSF")
+
+# Loop through each category and perform the steps
+for (category in categories) {
+  
+  # Fit the initial model with the current category
+  formula <- as.formula(paste("SalePrice ~", category))
+  model_initial <- lm(formula, data = data)
+  
+  # Check Cook's Distance to identify outliers
+  cook_plot <- cooks.distance(model_initial)
+  outliers <- which(cook_plot > 4 / length(cook_plot)) # Common threshold for outliers
+  
+  # Remove outliers from the data
+  data <- data[-outliers, ]
+  
+  # Print the model summary for each category
+  cat("\n\nModel for", category, ":\n")
+  print(summary(model_initial))
+}
+
+```
+
+
+```{r}
 write.csv(data, file="cleaned_house_data.csv")
 ```
 
@@ -114,14 +158,60 @@ model3 <- lm(SalePrice ~ LotArea + OverallQual + OverallCond + YearBuilt + YearR
 ```
 
 ```{r}
+summary(model3)
+```
+```{r}
+model3 <- lm(SalePrice ~ LotArea + OverallQual + OverallCond + YearBuilt + YearRemodAdd + BsmtFinSF1 + TotalBsmtSF + GrLivArea + GarageCars + WoodDeckSF, data = numeric_data)
+```
+```{r}
+summary(model3)
+```
+
+```{r}
 summary(model1)$adj.r.squared
 summary(model2)$adj.r.squared
 summary(model3)$adj.r.squared
 
 ```
 
+
 ```{r}
-test_data = read.csv(file.choose())
+# Define cross-validation control
+train_control <- trainControl(method = "cv", number = 10)  # 10-fold CV
+
+# Model 1
+cv_model1 <- train(SalePrice ~ GrLivArea, data = numeric_data, method = "lm", trControl = train_control)
+
+# Model 2
+cv_model2 <- train(SalePrice ~ GrLivArea + FullBath, data = numeric_data, method = "lm", trControl = train_control)
+
+# Model 3
+cv_model3 <- train(SalePrice ~ LotArea + OverallQual + OverallCond + YearBuilt + 
+                   YearRemodAdd + MasVnrArea + BsmtFinSF1 + TotalBsmtSF + 
+                   GrLivArea + BedroomAbvGr + KitchenAbvGr + TotRmsAbvGrd + 
+                   GarageCars + WoodDeckSF, data = numeric_data, method = "lm", 
+                   trControl = train_control)
+
+```
+
+```{r}
+cat("RMSE for Model 1:", cv_model1$results$RMSE, "\n")
+cat("RMSE for Model 2:", cv_model2$results$RMSE, "\n")
+cat("RMSE for Model 3:", cv_model3$results$RMSE, "\n")
+```
+```{r}
+# Calculate AIC for each model
+aic_model1 <- AIC(model1)
+aic_model2 <- AIC(model2)
+aic_model3 <- AIC(model3)
+aic_model1
+aic_model2
+aic_model3
+```
+
+
+```{r}
+test_data = read.csv("test.csv")
 ```
 
 ```{r}
@@ -179,43 +269,25 @@ summary(numeric_data_test)
 ```
 
 ```{r}
-predictions3 <- predict(model3, newdata = test_data)
-adjusted_predictions3 <- ifelse(predictions3 > 0, predictions3, 10000)
-# For Model 3: Adjust predictions and handle NA values
-adjusted_predictions3 <- ifelse(is.na(predictions3) | predictions3 <= 0, 10000, predictions3)
-results3 <- data.frame(
-  Id = test_data$Id,
-  SalePrice = adjusted_predictions3
-)
-```
-
-```{r}
-head(results3)
-```
-```{r}
-write.csv(results3, "results.csv", row.names = FALSE)
-```
-
-
-```{r}
-# Generate predictions for the models
+# For Model 1: Adjust predictions and handle NA values
 predictions1 <- predict(model1, newdata = test_data)
+adjusted_predictions1 <- ifelse(is.na(predictions1) | predictions1 <= 0, 10000, predictions1)
+results1 <- data.frame(
+  Id = test_data$Id,
+  SalePrice = adjusted_predictions1
+)
+
+
+# For Model 2: Adjust predictions and handle NA values
 predictions2 <- predict(model2, newdata = test_data)
+adjusted_predictions2 <- ifelse(is.na(predictions2) | predictions2 <= 0, 10000, predictions2)
+results2 <- data.frame(
+  Id = test_data$Id,
+  SalePrice = adjusted_predictions2
+)
+
 predictions3 <- predict(model3, newdata = test_data)
-
-# Apply the logic to ensure SalePrice is never less than 10,000
-# Model 1
-adjusted_predictions1 <- ifelse(predictions1 > 0, predictions1, 10000)
-
-# Model 2
-adjusted_predictions2 <- ifelse(predictions2 > 0, predictions2, 10000)
-
-# Model 3
 adjusted_predictions3 <- ifelse(predictions3 > 0, predictions3, 10000)
-```
-
-
-```{r}
 # For Model 3: Adjust predictions and handle NA values
 adjusted_predictions3 <- ifelse(is.na(predictions3) | predictions3 <= 0, 10000, predictions3)
 results3 <- data.frame(
@@ -224,13 +296,37 @@ results3 <- data.frame(
 )
 ```
 
-
 ```{r}
-results3
+head(predictions1)
 ```
 
 ```{r}
-write.csv(results3, "results.csv", row.names = FALSE)
+# For Model 1: Adjust predictions and handle NA values
+adjusted_predictions1 <- ifelse(is.na(predictions1) | predictions1 <= 0, 10000, predictions1)
+results1 <- data.frame(
+  Id = test_data$Id,
+  SalePrice = adjusted_predictions1
+)
+
+# For Model 2: Adjust predictions and handle NA values
+adjusted_predictions2 <- ifelse(is.na(predictions2) | predictions2 <= 0, 10000, predictions2)
+results2 <- data.frame(
+  Id = test_data$Id,
+  SalePrice = adjusted_predictions2
+)
+
+# For Model 3: Adjust predictions and handle NA values
+adjusted_predictions3 <- ifelse(is.na(predictions3) | predictions3 <= 0, 10000, predictions3)
+results3 <- data.frame(
+  Id = test_data$Id,
+  SalePrice = adjusted_predictions3
+)
+```
+
+```{r}
+write.csv(results1, "results1.csv", row.names = FALSE)
+write.csv(results2, "results2.csv", row.names = FALSE)
+write.csv(results3, "results3.csv", row.names = FALSE)
 ```
 
 
